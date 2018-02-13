@@ -5,10 +5,14 @@ package eu.marbilab.imagej;
  * 
  * <h1>Steerable3D</h1>
  * <p>This plugin applies a steerable filter based on 3D Gaussian derivatives
- * Filter feature is shown as a new stack.>p>
+ * following the prescriptions in<br/>
+ * Schneider M, Hirsch S, Weber B, Székely G, Menze BH. Med. Image Anal. 2015; 19: 220–249<br/>
+ * Filter feature is shown as a new stack.></p>
       
  * @author P. Miocchi (MARBILab - Fondazione Santa Lucia)
+ * @version 0.7.0
 
+ * [------before version control-------------
  * v.0.1:
  * - 31-Aug-17: bug corrected in setConvolution_wr  
  * - 25-Sep-17: bug corrected in setConvolution.myThread.run()  
@@ -25,7 +29,8 @@ package eu.marbilab.imagej;
  * v.0.7:
  * - 27-Dic-17: infos on # threads shown in showProgress  
  * - 7-Feb-18: name changed into Steerable3D_ (the serial version is now named Steerable3Dser_) 
- *      
+ * ----------------------------------------]
+ * put on github as 0.7.0
  */
 import ij.*;
 import ij.process.*;
@@ -57,7 +62,7 @@ public class Steerable3D_ implements PlugInFilter {
       IJ.showMessage("About Steerable3D...",
               "This plugin applies a steerable filter based on 3D Gaussian derivatives.\n"
               + "Filter feature is shown in a new stack.\n"
-              + "By P. Miocchi (MARBILab - Fondazione Santa Lucia).");
+              + "Ver. 0.7.0 by P. Miocchi (MARBILab - Fondazione Santa Lucia).");
       return DONE;
     }
     int dummy, ii, choice;
@@ -71,10 +76,6 @@ public class Steerable3D_ implements PlugInFilter {
     String[] azione = {"Custom (M,a,b)", "Edge (1,0,0)", "Ridge (2,1,0)", "Vessel (2,0,0)"};
 //    ImagePlus logo = new ImagePlus("Steerable3Dp_.tif");    
 //    gd.addImage(logo);
-    gd.addMessage(
-            "This plugin applies a steerable filter based on\n3D Gaussian derivatives.\n"
-            + "Filter feature is shown as a new stack.\n"
-            + "Ver. 1.7p (multithreaded), by P. Miocchi (MARBILab - Fondazione Santa Lucia).");
     gd.addChoice("Filter type: ", azione, "Custom (M,a,b)");
     //gd.addCheckbox("Draw Template only",false);
     gd.addNumericField("M (<5): ", 2, 0); //M
