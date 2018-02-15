@@ -1,16 +1,15 @@
 package eu.marbilab.imagej;
 
-
 /**
  * 
  * <h1>Steerable3D</h1>
  * <p>This plugin applies a steerable filter based on 3D Gaussian derivatives
  * following the prescriptions in<br/>
  * Schneider M, Hirsch S, Weber B, Székely G, Menze BH. Med. Image Anal. 2015; 19: 220–249<br/>
- * Filter feature is shown as a new stack.></p>
+ * Filter response is shown as a new stack.></p>
       
  * @author P. Miocchi (MARBILab - Fondazione Santa Lucia)
- * @version 0.7.0
+ * @version 0.7.1
 
  * [------before version control-------------
  * v.0.1:
@@ -31,7 +30,7 @@ package eu.marbilab.imagej;
  * - 7-Feb-18: name changed into Steerable3D_ (the serial version is now named Steerable3Dser_) 
  * ----------------------------------------]
  * put on github as 0.7.0
- */
+ **/
 import ij.*;
 import ij.process.*;
 import ij.gui.*;
@@ -39,7 +38,9 @@ import ij.plugin.filter.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Steerable3D_ implements PlugInFilter {
-
+        
+  protected static final String VERSION = "0.7.1";
+  protected static final String FILTER_ID = "S3D";
   ImagePlus imp;
   protected ImageStack stack;
   protected float[][][][] conv;
@@ -62,7 +63,7 @@ public class Steerable3D_ implements PlugInFilter {
       IJ.showMessage("About Steerable3D...",
               "This plugin applies a steerable filter based on 3D Gaussian derivatives.\n"
               + "Filter feature is shown in a new stack.\n"
-              + "Ver. 0.7.0 by P. Miocchi (MARBILab - Fondazione Santa Lucia).");
+              + "Ver. "+VERSION+" by P. Miocchi (MARBILab - Fondazione Santa Lucia).");
       return DONE;
     }
     int dummy, ii, choice;
@@ -260,8 +261,9 @@ public class Steerable3D_ implements PlugInFilter {
     for (int k = 0; k < this.stack.getSize(); k++) {
       newstack.setPixels(this.convrot2[k], k + 1);
     }
-    newimage.setTitle(imp.getTitle() + " - Filter Response ("
-            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) + "," + Integer.toString(this.SIGMA)
+    newimage.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Response("
+            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
+            "," + Integer.toString(this.SIGMA)
             + ")");
     newimage.updateAndDraw();
     ImageProcessor newip2 = newimage.getProcessor();
