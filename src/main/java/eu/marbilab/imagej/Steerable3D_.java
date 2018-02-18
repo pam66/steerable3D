@@ -9,8 +9,8 @@ package eu.marbilab.imagej;
  * Filter response is shown as a new stack.></p>
       
  * @author P. Miocchi (MARBILab - Fondazione Santa Lucia)
- * @version 0.7.1-KN-1-SNAPSHOT
- *  trying to optimize the kernel 3-d array by convertin into a 1-d array
+ * @version 0.7.1
+ * 
  * [------before version control-------------
  * v.0.1:
  * - 31-Aug-17: bug corrected in setConvolution_wr  
