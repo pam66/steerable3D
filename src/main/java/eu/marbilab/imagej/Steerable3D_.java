@@ -7,9 +7,15 @@ package eu.marbilab.imagej;
  * following the prescriptions in<br/>
  * Schneider M, Hirsch S, Weber B, Székely G, Menze BH. Med. Image Anal. 2015; 19: 220–249<br/>
  * Filter response is shown as a new stack.></p>
-      
+ * Implementation of optimal orientation weighted output
+   * The branch ORIENTATION (-OR) is to implement the exploitation of the optimal
+   * orientations found by the filter for each pixel. This will be (vectorially)
+   * space-averaged around each pixel and then the modulus of this average will
+   * be used to weight the filter response. This could give a further selectivity
+   * and improve the enhancement of tubular/linear structures.
+   * 
  * @author P. Miocchi (MARBILab - Fondazione Santa Lucia)
- * @version 0.7.1
+ * @version 0.7.1-OR-1
 
  * [------before version control-------------
  * v.0.1:
@@ -39,12 +45,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Steerable3D_ implements PlugInFilter {
         
-  protected static final String VERSION = "0.7.1";
+  protected static final String VERSION = "0.7.1-OR-1";
   protected static final String FILTER_ID = "S3D";
   ImagePlus imp;
   protected ImageStack stack;
   protected float[][][][] conv;
   protected float[][] convrot2;
+  protected double[][] thetaopt; //optimal theta or each voxel
+  protected double[][] psiopt; //optimal psi or each voxel
+  protected float[][] xopt; //x,y,z components of the versor optimal direction
+  protected float[][] yopt;
+  protected float[][] zopt;
   protected float[][][] kernel;
   final double SQRTPI2 = 2.50662827463;
   int[][] bincoeff;
@@ -137,7 +148,7 @@ public class Steerable3D_ implements PlugInFilter {
         return DONE;
       }
       this.conv = new float[this.M + 1][this.M + 1][this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
-      this.convrot2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+      this.convrot2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];      
     }
     if (this.M > 4 || this.M < 0 || this.B > this.A || this.A > this.M || this.SIGMA < 1) {
       IJ.error("Wrong parameters!\nCheck limits and constraints.");
@@ -203,10 +214,9 @@ public class Steerable3D_ implements PlugInFilter {
 
   @Override
   public void run(ImageProcessor ip) {
-    int ic, jc, kc, ii;
+    int ii;
     final int kernelRadius = 3 * this.SIGMA;
-    ImagePlus newimage = this.imp.duplicate();
-    ImageStack newstack = newimage.getStack();
+    ImagePlus response = this.imp.duplicate();
     Thread[] threads;
     //this is just to find the max numbers of PEs    
     threads = ij.util.ThreadUtil.createThreadArray();
@@ -243,6 +253,10 @@ public class Steerable3D_ implements PlugInFilter {
     ntot = ((int) ((this.thto - this.thfrom) / this.thstep) + 1)
             * ((int) ((this.psito - this.psifrom) / this.psistep) + 1);
     n = 0;
+    
+    this.thetaopt = new double[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    this.psiopt = new double[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    
     IJ.showProgress(n, ntot);
     for (this.THETA = this.thfrom; this.THETA <= this.thto; this.THETA += this.thstep) {
       for (this.PSI = this.psifrom; this.PSI <= this.psito; this.PSI += this.psistep) {
@@ -255,23 +269,62 @@ public class Steerable3D_ implements PlugInFilter {
         IJ.showProgress(n, ntot);
       }
     }
-
+    
     IJ.showStatus("done.");
 
     for (int k = 0; k < this.stack.getSize(); k++) {
-      newstack.setPixels(this.convrot2[k], k + 1);
+      response.getStack().setPixels(this.convrot2[k], k + 1);
     }
-    newimage.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Response("
+    response.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Response("
             + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
             "," + Integer.toString(this.SIGMA)
             + ")");
-    newimage.updateAndDraw();
-    ImageProcessor newip2 = newimage.getProcessor();
-    newip2.resetMinAndMax();
-    newimage.show();
+    response.updateAndDraw();
+    response.getProcessor().resetMinAndMax();
+    response.show();
 
+    this.xopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    this.yopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    this.zopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+
+    ImagePlus xorient = this.imp.duplicate();
+    xorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_X("
+            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
+            "," + Integer.toString(this.SIGMA)
+            + ")");
+    ImagePlus yorient = this.imp.duplicate();
+    yorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Y("
+            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
+            "," + Integer.toString(this.SIGMA)
+            + ")");
+    ImagePlus zorient = this.imp.duplicate();
+    zorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Z("
+            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
+            "," + Integer.toString(this.SIGMA)
+            + ")");
+    
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      for (ii = 0; ii < this.stack.getWidth() * this.stack.getHeight(); ii++) {
+        this.xopt[k][ii] = (float)(Math.cos(this.thetaopt[k][ii])*Math.cos(this.psiopt[k][ii]));
+        this.yopt[k][ii] = (float)(Math.cos(this.thetaopt[k][ii])*Math.sin(this.psiopt[k][ii]));
+        this.zopt[k][ii] = (float)(Math.sin(this.thetaopt[k][ii]));
+      }
+    }
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      xorient.getStack().setPixels(this.xopt[k], k + 1);
+      yorient.getStack().setPixels(this.yopt[k], k + 1);
+      zorient.getStack().setPixels(this.zopt[k], k + 1);
+    }
+    xorient.updateAndDraw();
+    xorient.getProcessor().resetMinAndMax();
+    xorient.show();
+    yorient.updateAndDraw();
+    yorient.getProcessor().resetMinAndMax();
+    yorient.show();
+    zorient.updateAndDraw();
+    zorient.getProcessor().resetMinAndMax();
+    zorient.show();  
   }
-
   /*
    evaluate the kernel, given {m,a,b}
    */
@@ -285,17 +338,19 @@ public class Steerable3D_ implements PlugInFilter {
     }
   }
 
-  /*
-   do convolution WITH rotation of a STF of order m,a,b (eq. 6, Schneider et al, 2015, MIA, 220)
-   and put it into <convrot2>.
-   setConvolution_wr must be called first to evaluate convolution without rotation
-   */
+  /**
+   * do convolution WITH rotation of a STF of order m,a,b (eq. 6, Schneider et al, 2015, MIA, 220)
+   * and put it into <convrot2>.
+   * setConvolution_wr must be called first to evaluate convolution without rotation
+   **/
   protected void setConvolution(final int m, final int a, final int b, final double theta, final double psi,
           Thread[] threads) {
 
     final ImageStack sstack = this.stack;
     final float[][] convrot = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
     final float[][] sconvrot2 = this.convrot2;
+    final double[][] stheta = this.thetaopt;
+    final double[][] spsi = this.psiopt;
     final float[][][][] sconv = this.conv;
     final double sinth = Math.sin(theta);
     final double costh = Math.cos(theta);
@@ -367,7 +422,11 @@ public class Steerable3D_ implements PlugInFilter {
         }
         for (k = from; k < to; k++) {
           for (ii = 0; ii < sstack.getWidth() * sstack.getHeight(); ii++) {
-            sconvrot2[k][ii] = Math.max(sconvrot2[k][ii], convrot[k][ii]);
+            if (convrot[k][ii]>=sconvrot2[k][ii]) {
+              sconvrot2[k][ii] = convrot[k][ii];
+              stheta[k][ii]=theta;
+              spsi[k][ii]=psi;
+            }
           }
         }
 
@@ -381,11 +440,11 @@ public class Steerable3D_ implements PlugInFilter {
     ij.util.ThreadUtil.startAndJoin(threads);
 
   }
-  /*
-   do convolution without rotation of a STF of order m,a,b with the given
-   kernel radius.
+  /**
+   * do convolution without rotation of a STF of order m,a,b with the given
+   * kernel radius.
    At the end <conv> is equal to f_{mab}^\sigma(I,x) (eq.6, Schneider et al, 2015, MIA, 220)
-   */
+   **/
 
   protected void setConvolution_wr(int m, final int a, final int b, final int kernelRadius, final int n, final int ntot) {
 
