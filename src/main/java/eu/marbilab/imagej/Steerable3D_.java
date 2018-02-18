@@ -9,7 +9,7 @@ package eu.marbilab.imagej;
  * Filter response is shown as a new stack.></p>
       
  * @author P. Miocchi (MARBILab - Fondazione Santa Lucia)
- * @version 0.7.1
+ * @version 0.7.2
  * 
  * [------before version control-------------
  * v.0.1:
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Steerable3D_ implements PlugInFilter {
         
-  protected static final String VERSION = "0.7.1";
+  protected static final String VERSION = "0.7.2";
   protected static final String FILTER_ID = "S3D";
   ImagePlus imp;
   protected ImageStack stack;
