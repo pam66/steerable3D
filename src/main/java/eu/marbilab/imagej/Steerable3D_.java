@@ -56,7 +56,7 @@ public class Steerable3D_ implements PlugInFilter {
   protected float[][] xopt; //x,y,z components of the versor optimal direction
   protected float[][] yopt;
   protected float[][] zopt;
-  protected float[][][] kernel;
+  protected float[] kernel;
   final double SQRTPI2 = 2.50662827463;
   int[][] bincoeff;
   //---- user parameters
@@ -174,7 +174,7 @@ public class Steerable3D_ implements PlugInFilter {
     this.THETA = 0.;
     this.PSI = 0.; //default: along x on the xy plane
     final int kernelRadius = 3 * this.SIGMA;
-    this.kernel = new float[2 * kernelRadius + 1][2 * kernelRadius + 1][2 * kernelRadius + 1];
+    this.kernel = new float[(2 * kernelRadius + 1)*(2 * kernelRadius + 1)*(2 * kernelRadius + 1)];
 
     for (int i = 0; i < 5; i++) {
       for (int j = 0; j < 5; j++) {
@@ -191,12 +191,13 @@ public class Steerable3D_ implements PlugInFilter {
       ImageStack kstack = kimage.getStack();
       float[] kpixels;
       this.setKernel(this.M, this.A, this.B, kernelRadius);
-      for (int k = 1; k <= 2 * kernelRadius + 1; k++) {
+      final int stride=2 * kernelRadius + 1;
+      for (int k = 1; k <= stride; k++) {
         ii = 0;
         kpixels = (float[]) kstack.getPixels(k);
-        for (int j = 0; j < 2 * kernelRadius + 1; j++) {
-          for (int i = 0; i < 2 * kernelRadius + 1; i++) {
-            kpixels[ii] = this.kernel[k - 1][j][i];
+        for (int j = 0; j < stride; j++) {
+          for (int i = 0; i < stride; i++) {
+            kpixels[ii] = this.kernel[(k - 1)*stride*stride+j*stride+i];
             ii++;
           }
         }
@@ -329,11 +330,15 @@ public class Steerable3D_ implements PlugInFilter {
    evaluate the kernel, given {m,a,b}
    */
   protected void setKernel(int m, int a, int b, int kernelRadius) {
-    for (int kc = 0; kc < 2 * kernelRadius + 1; kc++) {
-      for (int jc = 0; jc < 2 * kernelRadius + 1; jc++) {
-        for (int ic = 0; ic < 2 * kernelRadius + 1; ic++) {
-          this.kernel[kc][jc][ic] = (float) this.dGauss3D(ic - kernelRadius, jc - kernelRadius, kc - kernelRadius, this.SIGMA, m, a, b);
+    final int stride=2 * kernelRadius + 1;
+    int addr;
+    for (int kc = 0; kc < stride; kc++) {
+      addr=kc*stride*stride;
+      for (int jc = 0; jc < stride; jc++) {
+        for (int ic = 0; ic < stride; ic++) {
+          this.kernel[addr+ic] = (float) this.dGauss3D(ic - kernelRadius, jc - kernelRadius, kc - kernelRadius, this.SIGMA, m, a, b);
         }
+        addr=addr+stride;
       }
     }
   }
@@ -457,7 +462,7 @@ public class Steerable3D_ implements PlugInFilter {
     final AtomicInteger ai = new AtomicInteger(0);
     final ImageStack sstack = this.stack;
     final float[][][][] sconv = this.conv;
-    final float[][][] skernel = this.kernel;
+    final float[] skernel = this.kernel;
 
     class myThread extends Thread {
 
@@ -472,6 +477,7 @@ public class Steerable3D_ implements PlugInFilter {
       public void run() {
         float[] source;
         int ii;
+        final int stride=2 * kernelRadius + 1;
 
         for (int k = ai.getAndIncrement(); k < sstack.getSize(); k = ai.getAndIncrement()) {
           ii = 0; //k+1-th slice
@@ -494,7 +500,8 @@ public class Steerable3D_ implements PlugInFilter {
                       continue;
                     }
                     sconv[a][b][k][ii] += source[ic + jc * sstack.getWidth()]
-                            * skernel[kc - k + kernelRadius][jc - j + kernelRadius][ic - i + kernelRadius];
+                            * skernel[
+                      (kc - k + kernelRadius)*stride*stride+(jc - j + kernelRadius)*stride+ic - i + kernelRadius];
                   }
                 }
               }
