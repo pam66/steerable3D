@@ -62,6 +62,7 @@ public class Steerable3D_ implements PlugInFilter {
   //---- user parameters
   int M, A, B; // 3d filter order with M >= A >= B 
   int SIGMA; // filter length scale
+  int OSIGMA; //orientation-weighted average scale
   double THETA, PSI; //filter orientation
   double thstep, psistep; //filter orientation steps
   double thfrom, thto, psifrom, psito;
@@ -148,7 +149,7 @@ public class Steerable3D_ implements PlugInFilter {
         return DONE;
       }
       this.conv = new float[this.M + 1][this.M + 1][this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
-      this.convrot2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];      
+      //this.convrot2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];      
     }
     if (this.M > 4 || this.M < 0 || this.B > this.A || this.A > this.M || this.SIGMA < 1) {
       IJ.error("Wrong parameters!\nCheck limits and constraints.");
@@ -181,7 +182,8 @@ public class Steerable3D_ implements PlugInFilter {
         this.bincoeff[i][j] = this.BinCoeff(i, j);
       }
     }
-
+    //TODO: make OSIGMA e user-set parameter
+    this.OSIGMA = 8*this.SIGMA;
     if (template) {
       //--- create an image of a kernel
       ImagePlus kimage = NewImage.createFloatImage("kernel ("
@@ -217,7 +219,16 @@ public class Steerable3D_ implements PlugInFilter {
   public void run(ImageProcessor ip) {
     int ii;
     final int kernelRadius = 3 * this.SIGMA;
-    ImagePlus response = this.imp.duplicate();
+    //newimage.getProcessor();
+    
+    String subtitle=imp.getTitle()+"_"+FILTER_ID+ "("
+            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
+            "," + Integer.toString(this.SIGMA)+ ")";
+
+    ImagePlus response = imp.duplicate();
+    response.setTitle(subtitle + "_Response");
+            
+            
     Thread[] threads;
     //this is just to find the max numbers of PEs    
     threads = ij.util.ThreadUtil.createThreadArray();
@@ -244,7 +255,10 @@ public class Steerable3D_ implements PlugInFilter {
       }
     }
     IJ.showStatus("done.");
-
+    this.convrot2= new float[this.stack.getSize()][this.stack.getWidth()*this.stack.getHeight()];
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      response.getStack().setPixels(this.convrot2[k],k + 1);
+    }
     for (int k = 0; k < this.stack.getSize(); k++) {
       for (ii = 0; ii < this.stack.getWidth() * this.stack.getHeight(); ii++) {
         this.convrot2[k][ii] = -Float.MAX_VALUE;
@@ -273,37 +287,31 @@ public class Steerable3D_ implements PlugInFilter {
     
     IJ.showStatus("done.");
 
-    for (int k = 0; k < this.stack.getSize(); k++) {
-      response.getStack().setPixels(this.convrot2[k], k + 1);
-    }
-    response.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Response("
-            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
-            "," + Integer.toString(this.SIGMA)
-            + ")");
-    response.updateAndDraw();
-    response.getProcessor().resetMinAndMax();
-    response.show();
 
+//    for (int k = 0; k < this.stack.getSize(); k++) {
+//      response.getStack().setPixels(this.convrot2[k], k + 1);
+//    }
+    response.show();
+    response.updateAndDraw();
+//  response.getProcessor().resetMinAndMax();
+    
     this.xopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
     this.yopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
     this.zopt = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
 
-    ImagePlus xorient = this.imp.duplicate();
-    xorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_X("
-            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
-            "," + Integer.toString(this.SIGMA)
-            + ")");
-    ImagePlus yorient = this.imp.duplicate();
-    yorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Y("
-            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
-            "," + Integer.toString(this.SIGMA)
-            + ")");
-    ImagePlus zorient = this.imp.duplicate();
-    zorient.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Z("
-            + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
-            "," + Integer.toString(this.SIGMA)
-            + ")");
+    ImagePlus xorient = imp.duplicate();
+    xorient.setTitle(subtitle + "_Response_X");
+    ImagePlus yorient = imp.duplicate();
+    yorient.setTitle(subtitle + "_Response_Y");
+    ImagePlus zorient = imp.duplicate();
+    zorient.setTitle(subtitle + "_Response_Z");
     
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      xorient.getStack().setPixels(this.xopt[k],k + 1);
+      yorient.getStack().setPixels(this.yopt[k],k + 1);
+      zorient.getStack().setPixels(this.zopt[k],k + 1);
+    }
+
     for (int k = 0; k < this.stack.getSize(); k++) {
       for (ii = 0; ii < this.stack.getWidth() * this.stack.getHeight(); ii++) {
         this.xopt[k][ii] = (float)(Math.cos(this.thetaopt[k][ii])*Math.cos(this.psiopt[k][ii]));
@@ -311,20 +319,63 @@ public class Steerable3D_ implements PlugInFilter {
         this.zopt[k][ii] = (float)(Math.sin(this.thetaopt[k][ii]));
       }
     }
-    for (int k = 0; k < this.stack.getSize(); k++) {
-      xorient.getStack().setPixels(this.xopt[k], k + 1);
-      yorient.getStack().setPixels(this.yopt[k], k + 1);
-      zorient.getStack().setPixels(this.zopt[k], k + 1);
-    }
-    xorient.updateAndDraw();
-    xorient.getProcessor().resetMinAndMax();
+    //show x,y,z orientation components images so that user can save them
     xorient.show();
-    yorient.updateAndDraw();
-    yorient.getProcessor().resetMinAndMax();
+    xorient.updateAndDraw();
     yorient.show();
+    yorient.updateAndDraw();
+    zorient.show();
     zorient.updateAndDraw();
-    zorient.getProcessor().resetMinAndMax();
-    zorient.show();  
+
+    //create images to do space average
+    ImagePlus xorient2 = imp.duplicate();
+    ImagePlus yorient2 = imp.duplicate();
+    ImagePlus zorient2 = imp.duplicate();
+    //set averaged images' pixels
+    float[][] xopt2 = this.xopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    float[][] yopt2 = this.yopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    float[][] zopt2 = this.zopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      xorient2.getStack().setPixels(xopt2[k],k + 1);
+      yorient2.getStack().setPixels(yopt2[k],k + 1);
+      zorient2.getStack().setPixels(zopt2[k],k + 1);
+    }
+    
+    // do x orientation components gaussian average
+    IJ.run(xorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
+                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
+
+    // do y orientation components gaussian average
+    IJ.run(yorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
+                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
+
+    // do z orientation components gaussian average
+    IJ.run(zorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
+                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
+    
+    
+    //evaluate the orientation-weighted response
+    ImagePlus response2 = imp.duplicate();
+    response2.setTitle(subtitle + "_Response_OW");
+    float[][] response2Pixels = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      response2.getStack().setPixels(response2Pixels[k],k + 1);
+    }
+    
+    for (int k = 0; k < this.stack.getSize(); k++) {
+      for (ii = 0; ii < this.stack.getWidth() * this.stack.getHeight(); ii++) {
+        response2Pixels[k][ii]= this.convrot2[k][ii]*
+                (float) Math.pow((double) (xopt2[k][ii]*xopt2[k][ii] +
+                          yopt2[k][ii]*yopt2[k][ii] +
+                          zopt2[k][ii]*zopt2[k][ii]),0.5);
+      }
+    }
+
+    
+    response2.show();
+    response2.updateAndDraw();
+//    response.getProcessor().resetMinAndMax();
+   
   }
   /*
    evaluate the kernel, given {m,a,b}
@@ -528,8 +579,8 @@ public class Steerable3D_ implements PlugInFilter {
     ij.util.ThreadUtil.startAndJoin(threads);
 
   }
-
-  /*
+  
+   /*
    gives the partial derivative G^\sigma_{m,a,b}= \delta_x^(m-a) \delta_y^(a-b) \delta_z^b of the 3D
    gaussian with the given sigma. See eq. (3) of Schneider et al, 2015, MIA, 220
    */
