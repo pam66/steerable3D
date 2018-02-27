@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Steerable3D_ implements PlugInFilter {
         
-  protected static final String VERSION = "0.7.2";
+  protected static final String VERSION = "0.7.3";
   protected static final String FILTER_ID = "S3D";
   ImagePlus imp;
   protected ImageStack stack;
@@ -262,14 +262,12 @@ public class Steerable3D_ implements PlugInFilter {
     for (int k = 0; k < this.stack.getSize(); k++) {
       newstack.setPixels(this.convrot2[k], k + 1);
     }
-    newimage.setTitle(imp.getTitle()+"_"+FILTER_ID+ "_Response("
+    newimage.setTitle(FILTER_ID+ "_Response("
             + Integer.toString(this.M) + "," + Integer.toString(this.A) + "," + Integer.toString(this.B) +
             "," + Integer.toString(this.SIGMA)
-            + ")");
-    newimage.updateAndDraw();
-    ImageProcessor newip2 = newimage.getProcessor();
-    newip2.resetMinAndMax();
+            + ") of "+imp.getTitle());
     newimage.show();
+    newimage.updateAndDraw();
 
   }
 
