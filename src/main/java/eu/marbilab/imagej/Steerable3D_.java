@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Steerable3D_ implements PlugInFilter {
         
-  protected static final String VERSION = "0.7.1-OR-1";
+  protected static final String VERSION = "0.7.1-OR-3";
   protected static final String FILTER_ID = "S3D";
   ImagePlus imp;
   protected ImageStack stack;
@@ -183,7 +183,7 @@ public class Steerable3D_ implements PlugInFilter {
       }
     }
     //TODO: make OSIGMA e user-set parameter
-    this.OSIGMA = 8*this.SIGMA;
+    this.OSIGMA = 2*this.SIGMA;
     if (template) {
       //--- create an image of a kernel
       ImagePlus kimage = NewImage.createFloatImage("kernel ("
@@ -327,33 +327,14 @@ public class Steerable3D_ implements PlugInFilter {
     zorient.show();
     zorient.updateAndDraw();
 
-    //create images to do space average
-    ImagePlus xorient2 = imp.duplicate();
-    ImagePlus yorient2 = imp.duplicate();
-    ImagePlus zorient2 = imp.duplicate();
     //set averaged images' pixels
-    float[][] xopt2 = this.xopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
-    float[][] yopt2 = this.yopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
-    float[][] zopt2 = this.zopt.clone(); //new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
-    for (int k = 0; k < this.stack.getSize(); k++) {
-      xorient2.getStack().setPixels(xopt2[k],k + 1);
-      yorient2.getStack().setPixels(yopt2[k],k + 1);
-      zorient2.getStack().setPixels(zopt2[k],k + 1);
-    }
-    
-    // do x orientation components gaussian average
-    IJ.run(xorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
-                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
+    float[][] xopt2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    float[][] yopt2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
+    float[][] zopt2 = new float[this.stack.getSize()][this.stack.getWidth() * this.stack.getHeight()];
 
-    // do y orientation components gaussian average
-    IJ.run(yorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
-                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
-
-    // do z orientation components gaussian average
-    IJ.run(zorient2, "Gaussian Blur 3D...", "x="+Float.toString(this.OSIGMA)+ " y="+
-                Float.toString(this.OSIGMA) +" z="+Float.toString(this.OSIGMA));
-    
-    
+    evalStdDev(xorient,xopt2);
+    evalStdDev(yorient,yopt2);
+    evalStdDev(zorient,zopt2);
     //evaluate the orientation-weighted response
     ImagePlus response2 = imp.duplicate();
     response2.setTitle(subtitle + "_Response_OW");
@@ -640,4 +621,50 @@ public class Steerable3D_ implements PlugInFilter {
     }
     return (c1 / c2);
   }
+
+  private void evalStdDev(final ImagePlus image,float [][] destVoxels){
+    float[] source;
+    int i,j,k,i0,j0,k0,ii;
+    int i1;
+    int n;
+    float mean,mean2;
+    final int w=this.stack.getWidth();
+    final int h=this.stack.getHeight();
+    final int d=this.stack.getSize();
+    for (k = 0; k < d; k++) {
+      i1=0;
+      for (j = 0; j < h; j++) {
+        for (i = 0; i < w; i++) {
+          mean=mean2=(float)0.;
+          n=0;
+          for (k0 = k - this.OSIGMA; k0 <= k + this.OSIGMA; k0++) {
+            if (k0 < 0 || k0 >= d) {
+              continue;
+            }
+            source = (float[]) image.getStack().getPixels(k0 + 1);
+            for (j0 = j - this.OSIGMA; j0 <= j + this.OSIGMA; j0++) {
+              if (j0 < 0 || j0 >= h) {
+                continue;
+              }
+              for (i0 = i - this.OSIGMA; i0 <= i + this.OSIGMA; i0++) {
+                if (i0 < 0 || i0 >= w) {
+                  continue;
+                }
+                ii=i0+j0*w;
+                mean += source[ii];
+                mean2 += source[ii]*source[ii];
+                n++;
+              }
+            }
+          }
+
+          mean = mean*mean/(float)n;
+          destVoxels[k][i1]=(float)Math.sqrt((double)(mean2-mean)/(double)(n-1));
+          i1++;
+          
+        }
+      }
+    }
+  }
+  
 }
